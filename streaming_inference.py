@@ -7,7 +7,8 @@ from loguru import logger
 
 from config import ExperimentConfig, get_config
 from models.fast_conformer import FastConformerEncoder
-from models.advanced_ctc import AdvancedCTCDecoder, AdvancedCTCHead
+from models.rnnt_decoder import RNNTDecoder
+from models.rnnt_streaming import StreamingGreedyRNNT
 import sentencepiece as spm
 
 
@@ -28,14 +29,17 @@ def load_model(cfg: ExperimentConfig, ckpt_path: str, device: str):
     enc_state = {k.replace("encoder.", ""): v for k, v in state.items() if k.startswith("encoder.")}
     encoder.load_state_dict(enc_state, strict=False)
 
-    # CTC head
-    head = AdvancedCTCHead(cfg.model.n_state, cfg.model.vocab_size, dropout=0.0).to(device).eval()
-    head_state = {k.replace("ctc_head.", ""): v for k, v in state.items() if k.startswith("ctc_head.")}
-    head.load_state_dict(head_state, strict=False)
+    # RNN-T decoder
+    rnnt_decoder = RNNTDecoder(
+        vocab_size=cfg.model.vocab_size,
+        enc_dim=cfg.model.n_state,
+    ).to(device).eval()
+    rnnt_state = {k.replace("rnnt_decoder.", ""): v for k, v in state.items() if k.startswith("rnnt_decoder.")}
+    rnnt_decoder.load_state_dict(rnnt_state, strict=False)
 
-    # ctc decoder
-    ctc_dec = AdvancedCTCDecoder(cfg.model.vocab_size, cfg.model.rnnt_blank)
-    return encoder, head, ctc_dec
+    # Streaming greedy decoder
+    streaming_decoder = StreamingGreedyRNNT(rnnt_decoder, device=device)
+    return encoder, rnnt_decoder, streaming_decoder
 
 
 def log_mel(audio, cfg: ExperimentConfig):
@@ -51,7 +55,7 @@ def log_mel(audio, cfg: ExperimentConfig):
     return mel
 
 
-def stream_transcribe(wav_path: str, cfg: ExperimentConfig, encoder, head, decoder, tokenizer, device):
+def stream_transcribe(wav_path: str, cfg: ExperimentConfig, encoder, rnnt_decoder, streaming_decoder, tokenizer, device):
     wav, sr = torchaudio.load(wav_path)
     wav = torchaudio.functional.resample(wav, sr, cfg.audio.sample_rate)
     wav = wav.squeeze(0).to(device)
@@ -61,6 +65,7 @@ def stream_transcribe(wav_path: str, cfg: ExperimentConfig, encoder, head, decod
 
     offset = 0
     cache = encoder.init_cache(batch_size=1, device=device)
+    streaming_decoder.reset()  # Reset streaming decoder state
     collected = []
 
     while offset < wav.numel():
@@ -69,9 +74,8 @@ def stream_transcribe(wav_path: str, cfg: ExperimentConfig, encoder, head, decod
         mel = log_mel(chunk, cfg).unsqueeze(0)  # (1,n_mels,T)
         with torch.no_grad():
             enc, cache = encoder.stream_step(mel, cache)
-            logits = head(enc)
-            log_probs = torch.log_softmax(logits, dim=-1)
-            pred_ids = decoder.greedy_decode(log_probs, torch.tensor([enc.size(1)], device=device))[0]
+            # Use streaming RNN-T decoder
+            pred_ids = streaming_decoder.infer(enc)
             collected.extend(pred_ids)
         offset += stride
 
@@ -88,10 +92,10 @@ def main():
     cfg = get_config(args.config)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    encoder, head, decoder = load_model(cfg, args.checkpoint, device)
+    encoder, rnnt_decoder, streaming_decoder = load_model(cfg, args.checkpoint, device)
     tokenizer = spm.SentencePieceProcessor(model_file=cfg.model.tokenizer_model_path)
 
-    text = stream_transcribe(args.audio, cfg, encoder, head, decoder, tokenizer, device)
+    text = stream_transcribe(args.audio, cfg, encoder, rnnt_decoder, streaming_decoder, tokenizer, device)
     print(">>", text)
 
 

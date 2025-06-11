@@ -26,14 +26,12 @@ class ModelConfig:
     vocab_size: int = 1024
     tokenizer_model_path: str = "./weights/tokenizer_spe_bpe_v1024_pad/tokenizer.model"
     
-    # CTC specific
-    ctc_blank: int = 1024
-    rnnt_blank: int = 1024  # Keep for compatibility
+    # RNN-T specific
+    rnnt_blank: int = 1024  # Blank token for RNN-T
     pad: int = 1
-    
+
     # Advanced model features
     dropout: float = 0.1
-    label_smoothing: float = 0.1
     use_layer_norm: bool = True
 
     # Encoder: only FastConformer supported
@@ -75,9 +73,8 @@ class TrainingConfig:
     checkpoint_every_n_steps: int = 4000  # save checkpoints every N training steps
     save_epoch_checkpoint: bool = False   # additionally save checkpoint each epoch end
 
-    # Multi-task learning
-    aux_loss_weight: float = 0.2  # weight of auxiliary CTC loss (0 disables)
-    lambda_ctc: float = 0.3  # weight for CTC in hybrid CTC+RNNT loss
+    # RNN-T specific training
+    early_stopping_patience: int = 10  # Early stopping patience for validation WER
 
     # Validation frequency
     val_check_interval: int = 4000  # validate every N training steps
@@ -111,11 +108,9 @@ class DataConfig:
 @dataclass
 class InferenceConfig:
     """Inference configuration"""
-    beam_size: int = 5
-    use_beam_search: bool = False
-    length_penalty: float = 0.3
-    use_language_model: bool = False
-    lm_weight: float = 0.5
+    use_streaming: bool = True  # Use streaming RNN-T decoding
+    chunk_size_ms: int = 640   # Chunk size in milliseconds for streaming
+    overlap_ms: int = 160      # Overlap between chunks in milliseconds
 
 
 @dataclass
@@ -144,8 +139,8 @@ class PathConfig:
 @dataclass
 class ExperimentConfig:
     """Complete experiment configuration"""
-    name: str = "improved_ctc_whisper"
-    description: str = "Improved CTC-based ASR with PhoWhisper encoder"
+    name: str = "rnnt_fastconformer"
+    description: str = "RNN-T based ASR with FastConformer encoder for streaming inference"
     version: str = "1.0"
     
     # Sub-configs

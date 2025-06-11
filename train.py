@@ -1,3 +1,7 @@
+# DEPRECATED: This file has been replaced by rnnt_lightning.py
+# This file contains the old hybrid CTC+RNN-T training implementation
+# For RNN-T only training, use rnnt_lightning.py instead
+
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl

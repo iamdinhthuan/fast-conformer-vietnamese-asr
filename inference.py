@@ -15,8 +15,10 @@ from tqdm import tqdm
 
 # Import model components
 from models.fast_conformer import FastConformerEncoder
+from models.rnnt_decoder import RNNTDecoder
+from models.rnnt_streaming import StreamingGreedyRNNT
 from config import (
-    ExperimentConfig, 
+    ExperimentConfig,
     AudioConfig,
     ModelConfig,
     TrainingConfig,
@@ -57,25 +59,25 @@ class InferenceResult:
         }
 
 
-class CTCInference:
-    """Advanced CTC inference with optimization strategies"""
-    
+class RNNTInference:
+    """Advanced RNN-T inference with streaming capabilities"""
+
     def __init__(self, checkpoint_path: str, config: Optional[ExperimentConfig] = None, device: Optional[str] = None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.config = config or get_config()
-        logger.info(f"🚀 Initializing CTC inference on {self.device}")
-        
+        logger.info(f"🚀 Initializing RNN-T inference on {self.device}")
+
         self._load_model(checkpoint_path)
         self._init_tokenizer()
         self._init_decoder()
-        
+
         logger.info("✅ Inference engine ready!")
     
     def _load_model(self, checkpoint_path: str):
         """Load model from checkpoint"""
         logger.info(f"📦 Loading model from {checkpoint_path}")
-        
-        # Initialize Fast Conformer encoder (only supported)
+
+        # Initialize Fast Conformer encoder
         self.encoder = FastConformerEncoder(
             n_mels=self.config.audio.n_mels,
             d_model=self.config.model.n_state,
@@ -86,47 +88,46 @@ class CTCInference:
             left_ctx=self.config.model.left_ctx,
             right_ctx=self.config.model.right_ctx,
         )
-        
-        # Use vocab_size directly from config (it already includes the blank token)
-        self.ctc_head = AdvancedCTCHead(
-            input_dim=self.config.model.n_state,
-            vocab_size=self.config.model.vocab_size,  # Already includes blank token
-            dropout=0.0  # No dropout during inference
+
+        # Initialize RNN-T decoder
+        self.rnnt_decoder = RNNTDecoder(
+            vocab_size=self.config.model.vocab_size,
+            enc_dim=self.config.model.n_state,
         )
-        
+
         # Load checkpoint with weights_only=True for security
         checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
-        
+
         # Handle different checkpoint formats
         state_dict = checkpoint.get('state_dict', checkpoint)
-        
-        # Separate encoder and CTC head weights
+
+        # Separate encoder and RNN-T decoder weights
         encoder_weights = {}
-        ctc_weights = {}
-        
+        rnnt_weights = {}
+
         for key, value in state_dict.items():
             if 'alibi' in key:  # Skip ALiBi weights
                 continue
             elif key.startswith('encoder.'):
                 encoder_weights[key.replace('encoder.', '')] = value
-            elif key.startswith('ctc_head.'):
-                ctc_weights[key.replace('ctc_head.', '')] = value
-        
+            elif key.startswith('rnnt_decoder.'):
+                rnnt_weights[key.replace('rnnt_decoder.', '')] = value
+
         # Load weights
         self.encoder.load_state_dict(encoder_weights, strict=False)
-        self.ctc_head.load_state_dict(ctc_weights, strict=False)
-        
+        self.rnnt_decoder.load_state_dict(rnnt_weights, strict=False)
+
         # Move to device and set to eval mode
         self.encoder = self.encoder.to(self.device).eval()
-        self.ctc_head = self.ctc_head.to(self.device).eval()
+        self.rnnt_decoder = self.rnnt_decoder.to(self.device).eval()
         
     def _init_tokenizer(self):
         """Initialize SentencePiece tokenizer"""
         self.tokenizer = spm.SentencePieceProcessor(model_file=self.config.model.tokenizer_model_path)
         
     def _init_decoder(self):
-        """Initialize CTC decoder"""
-        self.decoder = AdvancedCTCDecoder(self.config.model.vocab_size, self.config.model.rnnt_blank)
+        """Initialize RNN-T streaming decoder"""
+        self.streaming_decoder = StreamingGreedyRNNT(self.rnnt_decoder, device=self.device)
     
     def log_mel_spectrogram(self, audio: torch.Tensor) -> torch.Tensor:
         """Compute log mel spectrogram"""
@@ -144,46 +145,46 @@ class CTCInference:
         
         return log_spec
     
-    def transcribe_single(self, audio_path: str, use_beam_search: bool = False) -> InferenceResult:
-        """Transcribe single audio file"""
+    def transcribe_single(self, audio_path: str, use_streaming: bool = True) -> InferenceResult:
+        """Transcribe single audio file using RNN-T"""
         start_time = time.time()
-        
+
         try:
             # Load audio
             audio, _ = librosa.load(audio_path, sr=self.config.audio.sample_rate)
             audio_tensor = torch.from_numpy(audio).to(self.device)
-            
+
             with torch.no_grad():
                 # Compute features
                 mels = self.log_mel_spectrogram(audio_tensor)
                 x = mels.unsqueeze(0)  # Add batch dimension
                 x_len = torch.tensor([x.shape[2]]).to(self.device)
-                
-                # Forward pass
+
+                # Forward pass through encoder
                 enc_out, enc_len, _ = self.encoder(x, x_len, return_intermediate=False)
-                logits = self.ctc_head(enc_out)
-                log_probs = F.log_softmax(logits, dim=-1)
-                
-                # Decode
-                if use_beam_search:
-                    decoded_sequences = self.decoder.prefix_beam_search(log_probs, enc_len)
-                    method = "beam_search"
+
+                # Decode using streaming RNN-T decoder
+                if use_streaming:
+                    self.streaming_decoder.reset()
+                    decoded_tokens = self.streaming_decoder.infer(enc_out)
+                    method = "streaming_greedy"
                 else:
-                    decoded_sequences = self.decoder.greedy_decode(log_probs, enc_len)
+                    # Fallback to simple greedy decoding (not implemented here)
+                    decoded_tokens = []
                     method = "greedy"
-                
+
                 # Get transcription
-                transcription = self.tokenizer.decode(decoded_sequences[0]) if decoded_sequences[0] else ""
+                transcription = self.tokenizer.decode(decoded_tokens) if decoded_tokens else ""
                 confidence = 0.8  # Placeholder confidence score
-                
+
         except Exception as e:
             logger.error(f"❌ Error processing {audio_path}: {e}")
             transcription = ""
             confidence = 0.0
             method = "error"
-        
+
         processing_time = time.time() - start_time
-        
+
         return InferenceResult(
             file_path=audio_path,
             transcription=transcription,
@@ -197,10 +198,10 @@ def main():
     """Main inference function"""
     import argparse
     
-    parser = argparse.ArgumentParser(description="CTC ASR Inference")
+    parser = argparse.ArgumentParser(description="RNN-T ASR Inference")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to checkpoint")
     parser.add_argument("--audio", type=str, required=True, help="Path to audio file")
-    parser.add_argument("--beam_search", action="store_true", help="Use beam search")
+    parser.add_argument("--streaming", action="store_true", default=True, help="Use streaming decoding")
     parser.add_argument("--device", type=str, help="Device (cuda/cpu)")
     parser.add_argument("--config", type=str, help="Path to config file (optional)")
     
@@ -228,10 +229,10 @@ def main():
     logger.info(f"📊 Model vocab size: {config.model.vocab_size}")
     
     # Initialize inference
-    inference = CTCInference(args.checkpoint, config, args.device)
-    
+    inference = RNNTInference(args.checkpoint, config, args.device)
+
     # Transcribe
-    result = inference.transcribe_single(args.audio, args.beam_search)
+    result = inference.transcribe_single(args.audio, args.streaming)
     
     print(f"🎯 Transcription: {result.transcription}")
     print(f"⏱️ Time: {result.processing_time:.2f}s")

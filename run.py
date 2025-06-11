@@ -15,7 +15,7 @@ from loguru import logger
 
 # Import components
 from config import ExperimentConfig, get_config
-from train import StreamingCTC, create_advanced_callbacks
+from rnnt_lightning import StreamingRNNT, create_advanced_callbacks
 from utils.dataset import create_dataset, create_collate_fn
 
 
@@ -31,7 +31,7 @@ def setup_logging(log_dir: str):
         level="INFO",
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}"
     )
-    logger.info("🚀 Starting Whisper ASR training")
+    logger.info("🚀 Starting RNN-T ASR training")
 
 
 def create_data_loaders(config: ExperimentConfig):
@@ -91,11 +91,11 @@ def create_data_loaders(config: ExperimentConfig):
 
 def create_model(config: ExperimentConfig):
     """Create model"""
-    logger.info("🏗️ Initializing model...")
-    
-    model = StreamingCTC(config)
-    
-    logger.info("✅ Model created successfully")
+    logger.info("🏗️ Initializing RNN-T model...")
+
+    model = StreamingRNNT(config)
+
+    logger.info("✅ RNN-T model created successfully")
     return model
 
 
@@ -110,7 +110,7 @@ def create_trainer(config: ExperimentConfig):
     from pytorch_lightning.loggers import TensorBoardLogger
     tb_logger = TensorBoardLogger(
         config.paths.log_dir,
-        name="ctc",
+        name="rnnt",
         version=f"v{config.version}"
     )
     

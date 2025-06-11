@@ -21,14 +21,14 @@ Mô hình sử dụng **Fast Conformer encoder** (đã loại bỏ mọi biến 
 ```text
 ├── config.py               # Dataclass chứa mặc định
 ├── config.json             # Ví dụ config (ghi đè mặc định)
-├── train.py                # LightningModule cho huấn luyện CTC+RNNT
+├── rnnt_lightning.py       # LightningModule cho huấn luyện RNN-T only
 ├── run.py                  # Điểm vào huấn luyện (argparse + Lightning Trainer)
 ├── inference.py            # Suy luận offline
 ├── streaming_inference.py  # Demo suy luận thời gian thực
 ├── models/
 │   ├── fast_conformer.py   # Fast Conformer encoder (torchaudio ≥ 2.2)
-│   ├── advanced_ctc.py     # Đầu ra CTC + decoder với label smoothing
-│   └── rnnt_decoder.py     # RNNT decoder nhỏ gọn + wrapper Loss
+│   ├── rnnt_decoder.py     # RNNT decoder nhỏ gọn + wrapper Loss
+│   └── rnnt_streaming.py   # Streaming RNN-T decoder cho real-time inference
 └── utils/                  # Tải dữ liệu, augmentation, metrics, ...
 ```
 
