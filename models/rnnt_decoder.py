@@ -45,6 +45,13 @@ class RNNTDecoder(nn.Module):
 
         # prediction network
         emb = self.embedding(targets_with_blank)  # (B,U+1,E)
+
+        # Ensure RNN is in correct mode for backward pass
+        if self.training:
+            self.pred_rnn.train()
+        else:
+            self.pred_rnn.eval()
+
         pred, _ = self.pred_rnn(emb)   # (B,U+1,P)
 
         f_enc = self.lin_enc(enc_out)          # (B,T_enc,P)

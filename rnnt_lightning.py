@@ -115,6 +115,8 @@ class StreamingRNNT(pl.LightningModule):
             vocab_size=config.model.vocab_size,
             enc_dim=config.model.n_state,
         )
+        # Keep RNN decoder in train mode during training
+        self.rnnt_decoder.train()
 
         self.rnnt_loss_fn = torchaudio.transforms.RNNTLoss(
             blank=config.model.rnnt_blank
@@ -134,6 +136,14 @@ class StreamingRNNT(pl.LightningModule):
         # Metric buffers
         self.validation_step_outputs: list[dict[str, Any]] = []
         self.step_start_time: Optional[float] = None
+
+    def train(self, mode: bool = True):
+        """Override train to ensure RNN decoder stays in correct mode"""
+        super().train(mode)
+        # Always keep RNN decoder in train mode during training
+        if mode:
+            self.rnnt_decoder.train()
+        return self
 
     # ------------------------------------------------------------------
     # Forward
