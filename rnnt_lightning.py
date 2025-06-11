@@ -401,9 +401,13 @@ class StreamingRNNT(pl.LightningModule):
             with torch.no_grad():
                 for i, idx in enumerate(random_indices):
                     try:
-                        # Get sample
+                        # Get sample (dataset returns melspec, transcript_tensor)
                         sample = val_dataset[idx]
-                        x, x_len, y, y_len = sample
+                        x, y = sample
+
+                        # Compute lengths manually (like collate function does)
+                        x_len = x.shape[-1]  # mel spectrogram length
+                        y_len = len(y)       # transcript length
 
                         # Add batch dimension
                         x = x.unsqueeze(0).to(self.device)
