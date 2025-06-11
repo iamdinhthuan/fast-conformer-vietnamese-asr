@@ -210,22 +210,27 @@ class StreamingRNNT(pl.LightningModule):
             print(f"[🔄] About to return loss for backward pass...")
 
         # Skip expensive WER computation for first few batches
-        if batch_idx % 2000 == 0 and batch_idx > 0:
+        if batch_idx % 2000 == 0 and batch_idx > 0 and hasattr(self, 'trainer') and self.trainer is not None:
             predictions = self._greedy_decode(enc_out, enc_len)
             targets = self._decode_targets(y, y_len)
             train_wer = self._compute_wer(predictions, targets, "TRAIN", batch_idx)
             self.log("train_wer", train_wer, prog_bar=True, on_step=True, on_epoch=False)
 
-        # Logging
-        self.log("train_loss", loss, prog_bar=True, on_step=True, on_epoch=False)
-        self.log(
-            "learning_rate", self.trainer.optimizers[0].param_groups[0]["lr"], on_step=True, on_epoch=False
-        )
+        # Safe logging - only if trainer is available
+        if hasattr(self, 'trainer') and self.trainer is not None:
+            self.log("train_loss", loss, prog_bar=True, on_step=True, on_epoch=False)
+            if hasattr(self.trainer, 'optimizers') and self.trainer.optimizers:
+                self.log(
+                    "learning_rate", self.trainer.optimizers[0].param_groups[0]["lr"], on_step=True, on_epoch=False
+                )
 
-        if batch_idx % 100 == 0:
-            step_time = time.time() - self.step_start_time
-            self.log("step_time", step_time, on_step=True, on_epoch=False)
-            self.step_start_time = time.time()
+            if batch_idx % 100 == 0:
+                step_time = time.time() - self.step_start_time if self.step_start_time else 0
+                self.log("step_time", step_time, on_step=True, on_epoch=False)
+                self.step_start_time = time.time()
+        else:
+            if batch_idx == 0:
+                print(f"[⚠️] Trainer not available - skipping logging")
 
         if batch_idx == 0:
             print(f"[🔄] Returning loss {loss.item():.4f} - backward pass will start...")
