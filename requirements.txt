@@ -1,0 +1,47 @@
+# Core ML frameworks
+torch>=2.0.0
+torchaudio>=2.0.0
+pytorch_lightning>=2.5.1
+
+# Audio processing
+librosa>=0.10.0
+audiomentations>=0.40.0
+soundfile>=0.12.0
+
+# Tokenization and NLP
+sentencepiece>=0.2.0
+
+# Metrics and evaluation
+jiwer>=3.1.0
+
+# Logging and monitoring
+loguru>=0.7.3
+tensorboard>=2.19.0
+wandb>=0.16.0
+
+# Scientific computing
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Progress bars and utilities
+tqdm>=4.65.0
+omegaconf>=2.3.0
+
+# Data handling
+datasets>=2.14.0
+pandas>=2.0.0
+
+# Development tools
+pytest>=7.4.0
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
+
+# Performance optimization
+numba>=0.58.0
+warprnnt-numba>=0.4.1
+
+# Optional: for advanced features
+transformers>=4.30.0  # For BartPho tokenizer extraction
+# onnxruntime>=1.15.0   # For model optimization
+# triton>=2.0.0         # For custom kernels 
