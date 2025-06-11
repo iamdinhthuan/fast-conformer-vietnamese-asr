@@ -207,10 +207,10 @@ class StreamingRNNT(pl.LightningModule):
         
         if batch_idx == 0:
             print(f"[✅] First loss calculated: {loss.item():.4f}")
-            print(f"[🚀] Training loop is running - wait for progress bar to update")
+            print(f"[🔄] About to return loss for backward pass...")
 
-        # Periodic WER logging
-        if batch_idx % 2000 == 0:
+        # Skip expensive WER computation for first few batches
+        if batch_idx % 2000 == 0 and batch_idx > 0:
             predictions = self._greedy_decode(enc_out, enc_len)
             targets = self._decode_targets(y, y_len)
             train_wer = self._compute_wer(predictions, targets, "TRAIN", batch_idx)
@@ -227,7 +227,25 @@ class StreamingRNNT(pl.LightningModule):
             self.log("step_time", step_time, on_step=True, on_epoch=False)
             self.step_start_time = time.time()
 
+        if batch_idx == 0:
+            print(f"[🔄] Returning loss {loss.item():.4f} - backward pass will start...")
+
         return loss
+
+    def on_before_optimizer_step(self, optimizer):
+        """Called before optimizer step"""
+        if self.global_step == 0:
+            print(f"[🔄] About to perform optimizer step {self.global_step}")
+
+    def on_after_backward(self):
+        """Called after backward pass"""
+        if self.global_step == 0:
+            print(f"[✅] Backward pass completed for step {self.global_step}")
+
+    def on_train_batch_end(self, outputs, batch, batch_idx):
+        """Called after training batch ends"""
+        if batch_idx == 0:
+            print(f"[✅] Training batch {batch_idx} completed!")
 
     def validation_step(self, batch, batch_idx: int):
         x, x_len, y, y_len = batch
