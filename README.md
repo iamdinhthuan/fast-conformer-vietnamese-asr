@@ -27,7 +27,7 @@ Mô hình sử dụng **Fast Conformer encoder** (đã loại bỏ mọi biến 
 ├── streaming_inference.py  # Demo suy luận thời gian thực
 ├── models/
 │   ├── fast_conformer.py   # Fast Conformer encoder (torchaudio ≥ 2.2)
-│   ├── rnnt_decoder.py     # RNNT decoder nhỏ gọn + wrapper Loss
+│   ├── rnnt_decoder.py     # RNN-T decoder với LSTMCell (Lightning compatible)
 │   └── rnnt_streaming.py   # Streaming RNN-T decoder cho real-time inference
 └── utils/                  # Tải dữ liệu, augmentation, metrics, ...
 ```
