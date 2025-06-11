@@ -173,12 +173,21 @@ class ExperimentConfig:
             if key == 'audio' and isinstance(value, dict):
                 kwargs[key] = AudioConfig(**value)
             elif key == 'model' and isinstance(value, dict):
-                # Handle tuple conversion for attention_context_size
+                # Handle tuple conversion for attention_context_size and remove deprecated fields
+                value = value.copy()
                 if 'attention_context_size' in value and isinstance(value['attention_context_size'], list):
-                    value = value.copy()
                     value['attention_context_size'] = tuple(value['attention_context_size'])
+                # Remove deprecated CTC-specific fields
+                deprecated_fields = ['ctc_blank', 'label_smoothing', 'aux_loss_weight', 'lambda_ctc']
+                for field in deprecated_fields:
+                    value.pop(field, None)
                 kwargs[key] = ModelConfig(**value)
             elif key == 'training' and isinstance(value, dict):
+                # Remove deprecated training fields
+                value = value.copy()
+                deprecated_fields = ['aux_loss_weight', 'lambda_ctc']
+                for field in deprecated_fields:
+                    value.pop(field, None)
                 kwargs[key] = TrainingConfig(**value)
             elif key == 'data' and isinstance(value, dict):
                 # Handle tuple conversions
@@ -188,6 +197,11 @@ class ExperimentConfig:
                         value_copy[field_name] = tuple(field_value)
                 kwargs[key] = DataConfig(**value_copy)
             elif key == 'inference' and isinstance(value, dict):
+                # Remove deprecated inference fields
+                value = value.copy()
+                deprecated_fields = ['beam_size', 'use_beam_search', 'length_penalty', 'use_language_model', 'lm_weight']
+                for field in deprecated_fields:
+                    value.pop(field, None)
                 kwargs[key] = InferenceConfig(**value)
             elif key == 'paths' and isinstance(value, dict):
                 kwargs[key] = PathConfig(**value)

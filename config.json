@@ -1,6 +1,6 @@
 {
-  "name": "my_custom_experiment",
-  "description": "Custom training with modified parameters",
+  "name": "rnnt_fastconformer_vietnamese",
+  "description": "RNN-T based ASR with FastConformer encoder for Vietnamese streaming inference",
   "version": "1.0",
   "audio": {
     "sample_rate": 16000,
@@ -15,11 +15,9 @@
     "attention_context_size": [40, 2],
     "vocab_size": 14500,
     "tokenizer_model_path": "./weights/bartpho_syllable/tokenizer.model",
-    "ctc_blank": 14500,
     "rnnt_blank": 14500,
     "pad": 1,
     "dropout": 0.1,
-    "label_smoothing": 0.15,
     "use_layer_norm": true,
     "encoder_type": "fast",
     "left_ctx": 160,
@@ -40,7 +38,7 @@
     "val_check_interval": 1000,
     "checkpoint_every_n_steps": 1000,
     "save_epoch_checkpoint": false,
-    "aux_loss_weight": 0.2,
+    "early_stopping_patience": 10,
     "check_val_every_n_epoch": 1,
     "log_every_n_steps": 50,
     "num_sanity_val_steps": 0,
@@ -63,11 +61,9 @@
     "random_seed": 42
   },
   "inference": {
-    "beam_size": 10,
-    "use_beam_search": true,
-    "length_penalty": 0.4,
-    "use_language_model": false,
-    "lm_weight": 0.5
+    "use_streaming": true,
+    "chunk_size_ms": 640,
+    "overlap_ms": 160
   },
   "paths": {
     "pretrained_encoder_weight": "./weights/phowhisper_small_encoder.pt",
