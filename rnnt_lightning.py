@@ -9,6 +9,9 @@ focus purely on RNNT loss.
 
 from typing import Any, Dict, List, Optional
 import time
+import random
+import os
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
@@ -20,6 +23,7 @@ from pytorch_lightning.utilities import rank_zero_only
 from jiwer import wer
 from loguru import logger
 import sentencepiece as spm
+import librosa
 
 import torchaudio
 
@@ -300,6 +304,14 @@ class StreamingRNNT(pl.LightningModule):
         self.log("val_wer_epoch", avg_wer, prog_bar=True, on_epoch=True)
 
         logger.info(f"Validation - Loss: {avg_loss:.4f}, WER: {avg_wer:.4f}")
+
+        # Predict random validation samples
+        self._predict_random_validation_samples()
+
+        # Predict custom directory if specified
+        if self.config.training.val_predict_dir and os.path.exists(self.config.training.val_predict_dir):
+            self._predict_custom_directory()
+
         self.validation_step_outputs.clear()
 
     # ------------------------------------------------------------------
@@ -366,3 +378,126 @@ class StreamingRNNT(pl.LightningModule):
             logger.info(f"  WER: {wer_score:.4f}")
 
         return wer_score
+
+    def _predict_random_validation_samples(self):
+        """Predict random samples from validation dataset"""
+        try:
+            if not hasattr(self.trainer, 'val_dataloaders') or not self.trainer.val_dataloaders:
+                return
+
+            val_dataloader = self.trainer.val_dataloaders
+            if hasattr(val_dataloader, '__iter__'):
+                val_dataset = val_dataloader.dataset
+            else:
+                return
+
+            # Get random samples
+            num_samples = min(self.config.training.val_predict_samples, len(val_dataset))
+            random_indices = random.sample(range(len(val_dataset)), num_samples)
+
+            logger.info(f"🎯 Predicting {num_samples} random validation samples...")
+
+            self.eval()
+            with torch.no_grad():
+                for i, idx in enumerate(random_indices):
+                    try:
+                        # Get sample
+                        sample = val_dataset[idx]
+                        x, x_len, y, y_len = sample
+
+                        # Add batch dimension
+                        x = x.unsqueeze(0).to(self.device)
+                        x_len = torch.tensor([x_len]).to(self.device)
+                        y = y.unsqueeze(0).to(self.device)
+                        y_len = torch.tensor([y_len]).to(self.device)
+
+                        # Forward pass
+                        enc_out, enc_len = self.forward(x, x_len)
+
+                        # Decode prediction
+                        predictions = self._greedy_decode(enc_out, enc_len)
+                        targets = self._decode_targets(y, y_len)
+
+                        # Compute WER for this sample
+                        sample_wer = wer([targets[0]], [predictions[0]]) if targets[0] and predictions[0] else 1.0
+
+                        logger.info(f"📝 Random Sample {i+1}/{num_samples} (idx={idx}):")
+                        logger.info(f"   Target: '{targets[0]}'")
+                        logger.info(f"   Prediction: '{predictions[0]}'")
+                        logger.info(f"   WER: {sample_wer:.4f}")
+
+                    except Exception as e:
+                        logger.warning(f"Failed to predict sample {idx}: {e}")
+
+            self.train()
+
+        except Exception as e:
+            logger.warning(f"Failed to predict random validation samples: {e}")
+
+    def _predict_custom_directory(self):
+        """Predict all audio files in custom directory"""
+        try:
+            predict_dir = Path(self.config.training.val_predict_dir)
+            if not predict_dir.exists():
+                logger.warning(f"Prediction directory does not exist: {predict_dir}")
+                return
+
+            # Find audio files
+            audio_extensions = {'.wav', '.mp3', '.flac', '.m4a', '.ogg'}
+            audio_files = []
+            for ext in audio_extensions:
+                audio_files.extend(predict_dir.glob(f"*{ext}"))
+                audio_files.extend(predict_dir.glob(f"**/*{ext}"))
+
+            if not audio_files:
+                logger.warning(f"No audio files found in {predict_dir}")
+                return
+
+            logger.info(f"🎯 Predicting {len(audio_files)} files from {predict_dir}...")
+
+            self.eval()
+            with torch.no_grad():
+                for i, audio_file in enumerate(audio_files[:10]):  # Limit to 10 files
+                    try:
+                        # Load audio
+                        audio, sr = librosa.load(str(audio_file), sr=self.config.audio.sample_rate)
+
+                        # Convert to mel spectrogram
+                        mel = self._audio_to_mel(torch.from_numpy(audio))
+
+                        # Add batch dimension
+                        x = mel.unsqueeze(0).to(self.device)
+                        x_len = torch.tensor([mel.shape[1]]).to(self.device)
+
+                        # Forward pass
+                        enc_out, enc_len = self.forward(x, x_len)
+
+                        # Decode prediction
+                        predictions = self._greedy_decode(enc_out, enc_len)
+
+                        logger.info(f"📁 File {i+1}/{min(len(audio_files), 10)}: {audio_file.name}")
+                        logger.info(f"   Prediction: '{predictions[0]}'")
+                        logger.info(f"   Duration: {len(audio)/sr:.2f}s")
+
+                    except Exception as e:
+                        logger.warning(f"Failed to predict {audio_file}: {e}")
+
+            self.train()
+
+        except Exception as e:
+            logger.warning(f"Failed to predict custom directory: {e}")
+
+    def _audio_to_mel(self, audio: torch.Tensor) -> torch.Tensor:
+        """Convert audio to mel spectrogram"""
+        # Simple mel spectrogram conversion
+        # You might want to use the same preprocessing as in your dataset
+        mel_transform = torchaudio.transforms.MelSpectrogram(
+            sample_rate=self.config.audio.sample_rate,
+            n_mels=self.config.audio.n_mels,
+            n_fft=self.config.audio.n_fft,
+            hop_length=self.config.audio.hop_length,
+        )
+
+        mel = mel_transform(audio)
+        mel = torch.log(mel + 1e-8)  # Log mel
+        return mel

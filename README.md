@@ -60,6 +60,20 @@ Mô hình sử dụng **Fast Conformer encoder** (đã loại bỏ mọi biến 
    python run.py --config config.json
    ```
 
+4. **Validation Prediction** (tùy chọn):
+
+   Trong quá trình training, model sẽ tự động predict:
+   - 5 samples ngẫu nhiên từ validation set
+   - Tất cả file audio trong thư mục tùy chỉnh (nếu có)
+
+   ```bash
+   # Chỉ định thư mục để predict thêm
+   python run.py --config config.json --val-predict-dir ./test_audio
+
+   # Tùy chỉnh số lượng random samples
+   python run.py --config config.json --val-predict-samples 10
+   ```
+
    Một số tuỳ chọn ghi đè nhanh:
 
    ```bash

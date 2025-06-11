@@ -167,6 +167,10 @@ def main():
     parser.add_argument("--learning-rate", type=float, help="Override learning rate")
     parser.add_argument("--max-epochs", type=int, help="Override max epochs")
     parser.add_argument("--devices", type=int, help="Number of devices")
+
+    # Validation prediction parameters
+    parser.add_argument("--val-predict-dir", type=str, help="Directory to predict during validation")
+    parser.add_argument("--val-predict-samples", type=int, help="Number of random validation samples to predict")
     
     args = parser.parse_args()
     
@@ -180,6 +184,10 @@ def main():
         config.training.learning_rate = args.learning_rate
     if args.max_epochs:
         config.training.max_epochs = args.max_epochs
+    if args.val_predict_dir:
+        config.training.val_predict_dir = args.val_predict_dir
+    if args.val_predict_samples:
+        config.training.val_predict_samples = args.val_predict_samples
     
     # Setup logging
     setup_logging(config.paths.log_dir)

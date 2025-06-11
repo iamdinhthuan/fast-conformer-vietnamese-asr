@@ -79,6 +79,10 @@ class TrainingConfig:
     # Validation frequency
     val_check_interval: int = 4000  # validate every N training steps
 
+    # Validation prediction settings
+    val_predict_samples: int = 5  # Number of random samples to predict during validation
+    val_predict_dir: str = ""     # Optional directory to predict all files during validation
+
 
 @dataclass
 class DataConfig:

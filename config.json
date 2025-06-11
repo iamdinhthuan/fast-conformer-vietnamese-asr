@@ -39,6 +39,8 @@
     "checkpoint_every_n_steps": 3000,
     "save_epoch_checkpoint": false,
     "early_stopping_patience": 10,
+    "val_predict_samples": 5,
+    "val_predict_dir": "./test_audio",
     "check_val_every_n_epoch": 1,
     "log_every_n_steps": 50,
     "num_sanity_val_steps": 0,
@@ -47,7 +49,7 @@
   },
   "data": {
     "metadata_file": "metadata.csv",
-    "train_val_split": 0.95,
+    "train_val_split": 0.995,
     "bg_noise_path": ["./datatest/noise/fsdnoisy18k"],
     "min_text_len": 1,
     "max_text_len": 60,
