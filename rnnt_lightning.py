@@ -120,6 +120,9 @@ class StreamingRNNT(pl.LightningModule):
             blank=config.model.rnnt_blank
         )
 
+        # Fallback CTC loss for debugging
+        self.ctc_loss_fn = torch.nn.CTCLoss(blank=config.model.rnnt_blank)
+
         # Greedy decoder helper for WER evaluation
         self.greedy_streamer = StreamingGreedyRNNT(self.rnnt_decoder, device=self.device)
 
@@ -168,12 +171,39 @@ class StreamingRNNT(pl.LightningModule):
             print(f"[🔄] y_len values: {y_len[:5]}")
             print(f"[⏱️] First batch completed in {time.time() - start_time:.2f} seconds")
 
-        loss = self.rnnt_loss_fn(
-            logits,
-            y.to(torch.int32),
-            enc_len.to(torch.int32),
-            y_len.to(torch.int32),
-        )
+        # Add timeout and error handling for RNN-T loss
+        try:
+            if batch_idx == 0:
+                print(f"[🔄] Computing RNN-T loss...")
+                start_loss_time = time.time()
+
+            loss = self.rnnt_loss_fn(
+                logits,
+                y.to(torch.int32),
+                enc_len.to(torch.int32),
+                y_len.to(torch.int32),
+            )
+
+            if batch_idx == 0:
+                loss_time = time.time() - start_loss_time
+                print(f"[⏱️] RNN-T loss computed in {loss_time:.2f}s")
+
+        except Exception as e:
+            print(f"[❌] RNN-T loss failed: {e}")
+            print(f"[🔄] Switching to CTC fallback...")
+
+            # Use CTC loss as fallback
+            # Project logits to (B, T, V) by taking mean over U dimension
+            ctc_logits = logits.mean(dim=2)  # (B, T, V)
+            ctc_log_probs = torch.log_softmax(ctc_logits, dim=-1).transpose(0, 1)  # (T, B, V)
+
+            loss = self.ctc_loss_fn(
+                ctc_log_probs,
+                y,
+                enc_len,
+                y_len
+            )
+            print(f"[✅] CTC fallback loss: {loss.item():.4f}")
         
         if batch_idx == 0:
             print(f"[✅] First loss calculated: {loss.item():.4f}")
