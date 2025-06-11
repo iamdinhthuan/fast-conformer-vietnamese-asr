@@ -11,7 +11,6 @@ class AudioConfig:
     n_fft: int = 400
     hop_length: int = 160
     n_mels: int = 80
-    # Removed max_duration and min_duration - filtering only by text length now
 
 
 @dataclass
@@ -69,11 +68,11 @@ class TrainingConfig:
     num_sanity_val_steps: int = 0  # Disable sanity checking by default
     
     # Mixed precision
-    precision: str = "bf16-mixed"
+    precision: str = "16-mixed"
     enable_progress_bar: bool = True
 
     # Checkpointing
-    checkpoint_every_n_steps: int = 1000  # save checkpoints every N training steps
+    checkpoint_every_n_steps: int = 4000  # save checkpoints every N training steps
     save_epoch_checkpoint: bool = False   # additionally save checkpoint each epoch end
 
     # Multi-task learning
@@ -81,7 +80,7 @@ class TrainingConfig:
     lambda_ctc: float = 0.3  # weight for CTC in hybrid CTC+RNNT loss
 
     # Validation frequency
-    val_check_interval: int = 1000  # validate every N training steps
+    val_check_interval: int = 4000  # validate every N training steps
 
 
 @dataclass

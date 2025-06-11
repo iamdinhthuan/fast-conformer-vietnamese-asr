@@ -21,7 +21,9 @@
     "dropout": 0.1,
     "label_smoothing": 0.15,
     "use_layer_norm": true,
-    "encoder_type": "efficient",
+    "encoder_type": "fast",
+    "left_ctx": 160,
+    "right_ctx": 40,
     "ffn_expansion": 4
   },
   "training": {
