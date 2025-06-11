@@ -43,10 +43,20 @@ class _Subsample(nn.Module):
             nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=2, padding=1),
             nn.ReLU(),
         )
+        # Calculate the frequency dimension after subsampling
+        self.freq_dim_after_subsample = (in_channels + 1) // 2  # After first conv
+        self.freq_dim_after_subsample = (self.freq_dim_after_subsample + 1) // 2  # After second conv
+
+        # Project to d_model
+        self.proj = nn.Linear(self.freq_dim_after_subsample, 1)
 
     def forward(self, x: Tensor) -> Tensor:
         # x: (B, n_mels, T)
-        return self.layers(x.unsqueeze(1))  # -> (B, C, F, T')
+        x = self.layers(x.unsqueeze(1))  # -> (B, out_channels, F', T')
+        B, C, F, T = x.shape
+        x = x.permute(0, 1, 3, 2)  # -> (B, out_channels, T', F')
+        x = self.proj(x)  # -> (B, out_channels, T', 1)
+        return x.permute(0, 1, 3, 2)  # -> (B, out_channels, 1, T')
 
 
 class FastConformerEncoder(nn.Module):
