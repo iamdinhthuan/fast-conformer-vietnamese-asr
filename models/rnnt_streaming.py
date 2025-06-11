@@ -69,10 +69,15 @@ class StreamingGreedyRNNT:
                 if self._prev_token.device != self.rnnt.embedding.weight.device:
                     self._prev_token = self._prev_token.to(self.rnnt.embedding.weight.device)
                 pred_embed = self.rnnt.embedding(self._prev_token).unsqueeze(0)  # (1,1,E)
-                pred_out, self._hidden = (
-                    self.rnnt.pred_rnn(pred_embed, self._hidden)
-                    if self._hidden is not None else self.rnnt.pred_rnn(pred_embed)
-                )  # (1,1,P)
+                # Use LSTMCell for streaming
+                if self._hidden is None:
+                    h = torch.zeros(1, self.rnnt.pred_dim, device=pred_embed.device, dtype=pred_embed.dtype)
+                    c = torch.zeros(1, self.rnnt.pred_dim, device=pred_embed.device, dtype=pred_embed.dtype)
+                    self._hidden = (h, c)
+
+                h, c = self.rnnt.pred_rnn_cell(pred_embed.squeeze(1), self._hidden)
+                self._hidden = (h, c)
+                pred_out = h.unsqueeze(1)  # (1,1,P)
 
                 f_enc = self.rnnt.lin_enc(enc_t.unsqueeze(0).unsqueeze(0))  # (1,1,P)
                 f_pred = self.rnnt.lin_pred(pred_out)                      # (1,1,P)

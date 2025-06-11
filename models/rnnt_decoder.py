@@ -22,7 +22,9 @@ class RNNTDecoder(nn.Module):
         self.blank_id = vocab_size  # assume blank = vocab_size (same as CTC blank)
 
         self.embedding = nn.Embedding(vocab_size + 1, embed_dim)  # +blank
-        self.pred_rnn = nn.LSTM(embed_dim, pred_dim, num_layers=1, batch_first=True)
+        # Use LSTMCell instead of LSTM for Lightning compatibility
+        self.pred_rnn_cell = nn.LSTMCell(embed_dim, pred_dim)
+        self.pred_dim = pred_dim
 
         self.lin_enc = nn.Linear(enc_dim, pred_dim)
         self.lin_pred = nn.Linear(pred_dim, pred_dim)
@@ -46,13 +48,20 @@ class RNNTDecoder(nn.Module):
         # prediction network
         emb = self.embedding(targets_with_blank)  # (B,U+1,E)
 
-        # Ensure RNN is in correct mode for backward pass
-        if self.training:
-            self.pred_rnn.train()
-        else:
-            self.pred_rnn.eval()
+        # Use LSTMCell manually to avoid CuDNN issues
+        B, U_plus_1, E = emb.shape
+        pred_outputs = []
 
-        pred, _ = self.pred_rnn(emb)   # (B,U+1,P)
+        # Initialize hidden state
+        h = torch.zeros(B, self.pred_dim, device=emb.device, dtype=emb.dtype)
+        c = torch.zeros(B, self.pred_dim, device=emb.device, dtype=emb.dtype)
+
+        # Process each time step
+        for t in range(U_plus_1):
+            h, c = self.pred_rnn_cell(emb[:, t, :], (h, c))
+            pred_outputs.append(h)
+
+        pred = torch.stack(pred_outputs, dim=1)  # (B, U+1, P)
 
         f_enc = self.lin_enc(enc_out)          # (B,T_enc,P)
         f_pred = self.lin_pred(pred)           # (B,U+1,P)
