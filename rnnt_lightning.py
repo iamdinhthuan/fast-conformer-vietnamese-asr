@@ -156,9 +156,13 @@ class StreamingRNNT(pl.LightningModule):
             print(f"[🔄] Encoder output shape: {enc_out.shape}, encoder lengths: {enc_len.shape}")
 
         logits = self.rnnt_decoder(enc_out, y, y_len)
-        
+
         if batch_idx == 0:
             print(f"[🔄] RNNT decoder output shape: {logits.shape}")
+            print(f"[🔄] Encoder output shape: {enc_out.shape}, enc_len: {enc_len.shape}")
+            print(f"[🔄] Targets shape: {y.shape}, y_len: {y_len.shape}")
+            print(f"[🔄] enc_len values: {enc_len[:5]}")
+            print(f"[🔄] y_len values: {y_len[:5]}")
             print(f"[⏱️] First batch completed in {time.time() - start_time:.2f} seconds")
 
         loss = self.rnnt_loss_fn(

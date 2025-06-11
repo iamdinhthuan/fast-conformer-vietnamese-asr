@@ -38,16 +38,21 @@ class RNNTDecoder(nn.Module):
         B, T_enc, D = enc_out.shape
         U = targets.size(1)
 
+        # Prepend blank token to targets for prediction network
+        # RNN-T prediction network needs to start with blank
+        blank_tokens = torch.full((B, 1), self.blank_id, dtype=targets.dtype, device=targets.device)
+        targets_with_blank = torch.cat([blank_tokens, targets], dim=1)  # (B, U+1)
+
         # prediction network
-        emb = self.embedding(targets)  # (B,U,E)
-        pred, _ = self.pred_rnn(emb)   # (B,U,P)
+        emb = self.embedding(targets_with_blank)  # (B,U+1,E)
+        pred, _ = self.pred_rnn(emb)   # (B,U+1,P)
 
         f_enc = self.lin_enc(enc_out)          # (B,T_enc,P)
-        f_pred = self.lin_pred(pred)           # (B,U,P)
+        f_pred = self.lin_pred(pred)           # (B,U+1,P)
 
         # expand and add
         f_enc = f_enc.unsqueeze(2)             # (B,T,1,P)
-        f_pred = f_pred.unsqueeze(1)           # (B,1,U,P)
-        joint = torch.tanh(f_enc + f_pred)     # (B,T,U,P)
-        logits = self.joint(joint)             # (B,T,U,vocab+1)
-        return logits 
+        f_pred = f_pred.unsqueeze(1)           # (B,1,U+1,P)
+        joint = torch.tanh(f_enc + f_pred)     # (B,T,U+1,P)
+        logits = self.joint(joint)             # (B,T,U+1,vocab+1)
+        return logits
