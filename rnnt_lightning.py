@@ -84,6 +84,9 @@ class StreamingRNNT(pl.LightningModule):
         accumulate_grad_batches: int | None = None,
     ) -> None:
         super().__init__()
+
+        # Optimize for Tensor Cores
+        torch.set_float32_matmul_precision('medium')
         self.config = config
 
         # Override config with explicit parameters if provided

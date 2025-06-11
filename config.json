@@ -25,7 +25,7 @@
     "ffn_expansion": 4
   },
   "training": {
-    "batch_size": 64,
+    "batch_size": 8,
     "num_workers": 8,
     "max_epochs": 100,
     "learning_rate": 1e-4,
@@ -34,7 +34,7 @@
     "total_steps": 5000000,
     "weight_decay": 1e-6,
     "gradient_clip_val": 1.0,
-    "accumulate_grad_batches": 1,
+    "accumulate_grad_batches": 8,
     "val_check_interval": 1000,
     "checkpoint_every_n_steps": 1000,
     "save_epoch_checkpoint": false,
