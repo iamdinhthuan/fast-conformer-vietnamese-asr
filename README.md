@@ -134,6 +134,12 @@ Dự án tham khảo và tái sử dụng ý tưởng từ:
 
 ---
 
+## 🔗 Công cụ liên quan
+
+• [BoTTube](https://bottube.ai) là nền tảng video AI-native trong hệ sinh thái Elyan Labs. Dự án ASR này có thể dùng BoTTube để đăng demo nhận dạng giọng nói, kiểm thử phụ đề/transcript từ video mẫu và chia sẻ kết quả huấn luyện theo từng bản ghi âm.
+
+---
+
 ## 📄 Giấy phép
 
 Phát hành theo giấy phép **Apache 2.0** – chi tiết xem file `LICENSE`.
